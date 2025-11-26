@@ -1,10 +1,47 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
 export default function ChooseRolePage() {
   const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
+  const [role, setRole] = useState<"dater" | "curator" | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<string>("Checking your saved role…");
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const user = data.user;
+      if (!user) {
+        router.push("/login");
+      } else {
+        setEmail(user.email);
+        supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle()
+          .then(({ data: profile, error }) => {
+            if (error) {
+              setStatus(
+                "Missing Supabase setup? Create the `profiles` table with RLS from the README so roles can be stored."
+              );
+              setLoading(false);
+              return;
+            }
+            if (profile?.role === "dater" || profile?.role === "curator") {
+              setRole(profile.role);
+              setStatus(`Role saved as ${profile.role}. Profile button unlocked.`);
+            } else {
+              setStatus("Pick a role to unlock the Profile shortcut.");
+            }
+            setLoading(false);
+          });
+      }
+    });
+  }, [router]);
 
   async function setRole(role: "dater" | "curator") {
     const {
@@ -23,11 +60,37 @@ export default function ChooseRolePage() {
     else router.push("/curator");
   }
 
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
+
+  const profileDestination = role ? `/${role}` : null;
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center gap-6 px-4 bg-black text-white">
-      <h1 className="text-3xl font-bold text-center">
-        Who are you here as?
-      </h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-3xl font-bold text-center">Who are you here as?</h1>
+        {email && (
+          <span className="text-xs px-3 py-1 rounded-full bg-white/10 text-zinc-300">{email}</span>
+        )}
+        <button
+          disabled={!profileDestination}
+          onClick={() => profileDestination && router.push(profileDestination)}
+          className="text-xs px-3 py-1 rounded-full border border-white/10 bg-white/5 hover:bg-white/15 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Profile
+        </button>
+      </div>
+
+      <p className="text-xs text-amber-200/90 bg-amber-900/30 border border-amber-700/40 rounded-lg px-3 py-2 max-w-xl text-center">
+        {status}
+        {loading && " Verifying session…"}
+      </p>
+
+      <p className="text-sm text-zinc-400 max-w-xl text-center">
+        Choose a role to unlock the right dashboard. You can switch later without losing data. Sessions are protected with Supabase Auth.
+      </p>
 
       <div className="flex flex-col md:flex-row gap-4 mt-4">
         <button
@@ -50,6 +113,13 @@ export default function ChooseRolePage() {
           </p>
         </button>
       </div>
+
+      <button
+        onClick={handleSignOut}
+        className="text-sm text-zinc-400 underline underline-offset-4 hover:text-white"
+      >
+        Sign out securely
+      </button>
     </main>
   );
 }
