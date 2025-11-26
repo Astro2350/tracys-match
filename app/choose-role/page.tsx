@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 export default function ChooseRolePage() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+  const [role, setRole] = useState<"dater" | "curator" | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,7 +17,17 @@ export default function ChooseRolePage() {
         router.push("/login");
       } else {
         setEmail(user.email);
-        setLoading(false);
+        supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle()
+          .then(({ data: profile }) => {
+            if (profile?.role === "dater" || profile?.role === "curator") {
+              setRole(profile.role);
+            }
+            setLoading(false);
+          });
       }
     });
   }, [router]);
@@ -43,6 +54,8 @@ export default function ChooseRolePage() {
     router.push("/login");
   }
 
+  const profileDestination = role ? `/${role}` : null;
+
   if (loading)
     return (
       <main className="min-h-screen flex items-center justify-center text-white bg-black">
@@ -57,6 +70,13 @@ export default function ChooseRolePage() {
         {email && (
           <span className="text-xs px-3 py-1 rounded-full bg-white/10 text-zinc-300">{email}</span>
         )}
+        <button
+          disabled={!profileDestination}
+          onClick={() => profileDestination && router.push(profileDestination)}
+          className="text-xs px-3 py-1 rounded-full border border-white/10 bg-white/5 hover:bg-white/15 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Profile
+        </button>
       </div>
 
       <p className="text-sm text-zinc-400 max-w-xl text-center">

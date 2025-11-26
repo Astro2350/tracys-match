@@ -225,6 +225,12 @@ export default function DaterDashboard() {
             {userEmail && (
               <span className="text-xs px-3 py-1 rounded-full bg-white/10 text-zinc-300">{userEmail}</span>
             )}
+            <a
+              href="#profile"
+              className="px-4 py-2 rounded-lg border border-white/10 text-sm text-white hover:bg-white/10 transition"
+            >
+              Profile
+            </a>
             <div className="border border-white/10 rounded-xl p-4 bg-white/5 text-sm text-zinc-300">
               <div className="flex items-center justify-between">
                 <span>Ready for intro</span>
@@ -241,7 +247,10 @@ export default function DaterDashboard() {
           </div>
         </div>
 
-        <section className="border border-white/10 rounded-2xl bg-zinc-950 p-6 space-y-6">
+        <section
+          id="profile"
+          className="border border-white/10 rounded-2xl bg-zinc-950 p-6 space-y-6"
+        >
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h2 className="text-xl font-semibold">Share your story</h2>
