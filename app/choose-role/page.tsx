@@ -9,6 +9,7 @@ export default function ChooseRolePage() {
   const [email, setEmail] = useState<string | null>(null);
   const [role, setRole] = useState<"dater" | "curator" | null>(null);
   const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<string>("Checking your saved role…");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -22,9 +23,19 @@ export default function ChooseRolePage() {
           .select("role")
           .eq("id", user.id)
           .maybeSingle()
-          .then(({ data: profile }) => {
+          .then(({ data: profile, error }) => {
+            if (error) {
+              setStatus(
+                "Missing Supabase setup? Create the `profiles` table with RLS from the README so roles can be stored."
+              );
+              setLoading(false);
+              return;
+            }
             if (profile?.role === "dater" || profile?.role === "curator") {
               setRole(profile.role);
+              setStatus(`Role saved as ${profile.role}. Profile button unlocked.`);
+            } else {
+              setStatus("Pick a role to unlock the Profile shortcut.");
             }
             setLoading(false);
           });
@@ -56,13 +67,6 @@ export default function ChooseRolePage() {
 
   const profileDestination = role ? `/${role}` : null;
 
-  if (loading)
-    return (
-      <main className="min-h-screen flex items-center justify-center text-white bg-black">
-        Verifying session…
-      </main>
-    );
-
   return (
     <main className="min-h-screen flex flex-col items-center justify-center gap-6 px-4 bg-black text-white">
       <div className="flex items-center gap-3">
@@ -78,6 +82,11 @@ export default function ChooseRolePage() {
           Profile
         </button>
       </div>
+
+      <p className="text-xs text-amber-200/90 bg-amber-900/30 border border-amber-700/40 rounded-lg px-3 py-2 max-w-xl text-center">
+        {status}
+        {loading && " Verifying session…"}
+      </p>
 
       <p className="text-sm text-zinc-400 max-w-xl text-center">
         Choose a role to unlock the right dashboard. You can switch later without losing data. Sessions are protected with Supabase Auth.

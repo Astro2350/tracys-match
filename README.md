@@ -54,6 +54,12 @@ npm run dev
 
 Visit `http://localhost:3000` and use the signup/login flows. Email verification is required before role selection. Password resets are handled via `/reset-password` and honor Supabase recovery links.
 
+### Don’t see the Profile button after logging in?
+
+- Make sure the `profiles` table above exists in Supabase (the page now shows a hint if it can’t read it). That table stores the saved role and unlocks the Profile shortcut.
+- After login, go to `/choose-role` and pick either **I’m the one dating** or **I’m here to help**. That saves the role and turns on the Profile button for your dashboard.
+- Confirm your `.env.local` points to the right Supabase project; mismatched URLs/keys will prevent your session from loading the saved role.
+
 ## Security notes
 
 - Sessions use Supabase's secure cookies with auto-refresh enabled in `lib/supabase.ts`.
