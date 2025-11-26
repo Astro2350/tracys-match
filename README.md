@@ -21,7 +21,7 @@ create policy "Users manage their own profile" on public.profiles
   with check (auth.uid() = id);
 ```
 
-4. Copy `.env.example` to `.env.local` and fill in your Supabase URL and anon key:
+4. Copy `.env.example` to `.env.local` and fill in your Supabase URL and anon key (use the exact Project URL, not "undefined" or placeholders):
 
 ```bash
 cp .env.example .env.local
