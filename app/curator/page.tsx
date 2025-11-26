@@ -32,30 +32,49 @@ export default function CuratorDashboard() {
   const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates);
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     async function checkRole() {
       const {
         data: { user },
+        error,
       } = await supabase.auth.getUser();
+
+      if (error) {
+        setErrorMessage(error.message);
+        return setLoading(false);
+      }
 
       if (!user) return router.push("/login");
 
-      const { data } = await supabase
+      const { data, error: profileError } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", user.id)
         .single();
 
+      if (profileError) {
+        setErrorMessage(profileError.message);
+        return setLoading(false);
+      }
+
       if (!data || data.role !== "curator") {
         return router.push("/choose-role");
       }
 
+      setUserEmail(user.email ?? null);
       setLoading(false);
     }
 
     checkRole();
   }, [router]);
+
+  async function signOut() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
 
   function updateStatus(id: number, status: Candidate["status"]) {
     setCandidates((prev) =>
@@ -88,6 +107,22 @@ export default function CuratorDashboard() {
       </main>
     );
 
+  if (errorMessage)
+    return (
+      <main className="min-h-screen bg-black flex items-center justify-center text-white p-4">
+        <div className="max-w-lg text-center space-y-3">
+          <p className="text-xl font-semibold">We hit a snag</p>
+          <p className="text-sm text-zinc-400">{errorMessage}</p>
+          <button
+            onClick={signOut}
+            className="px-4 py-2 rounded-lg bg-white text-black font-semibold hover:bg-zinc-200 transition"
+          >
+            Return to login
+          </button>
+        </div>
+      </main>
+    );
+
   return (
     <main className="min-h-screen bg-black text-white p-6">
       <div className="max-w-5xl mx-auto space-y-8">
@@ -97,14 +132,25 @@ export default function CuratorDashboard() {
             <h1 className="text-3xl font-bold">Curate matches for Taylor</h1>
             <p className="text-sm text-zinc-400">Gather thoughtful introductions with notes they can trust.</p>
           </div>
-          <div className="border border-white/10 rounded-xl p-4 bg-white/5 text-sm text-zinc-300">
-            <div className="flex items-center justify-between">
-              <span>Pool health</span>
-              <span className="text-emerald-300 font-semibold">{candidates.filter((c) => c.status === "added").length} ready</span>
+          <div className="flex items-center gap-3">
+            {userEmail && (
+              <span className="text-xs px-3 py-1 rounded-full bg-white/10 text-zinc-300">{userEmail}</span>
+            )}
+            <div className="border border-white/10 rounded-xl p-4 bg-white/5 text-sm text-zinc-300">
+              <div className="flex items-center justify-between">
+                <span>Pool health</span>
+                <span className="text-emerald-300 font-semibold">{candidates.filter((c) => c.status === "added").length} ready</span>
+              </div>
+              <div className="text-xs text-zinc-500 mt-1">
+                Keep at least 3 solid options with clear notes.
+              </div>
             </div>
-            <div className="text-xs text-zinc-500 mt-1">
-              Keep at least 3 solid options with clear notes.
-            </div>
+            <button
+              onClick={signOut}
+              className="px-4 py-2 rounded-lg border border-white/10 text-sm text-white hover:bg-white/10 transition"
+            >
+              Sign out
+            </button>
           </div>
         </div>
 

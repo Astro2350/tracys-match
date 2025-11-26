@@ -1,10 +1,25 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
 export default function ChooseRolePage() {
   const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const user = data.user;
+      if (!user) {
+        router.push("/login");
+      } else {
+        setEmail(user.email);
+        setLoading(false);
+      }
+    });
+  }, [router]);
 
   async function setRole(role: "dater" | "curator") {
     const {
@@ -23,11 +38,30 @@ export default function ChooseRolePage() {
     else router.push("/curator");
   }
 
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
+
+  if (loading)
+    return (
+      <main className="min-h-screen flex items-center justify-center text-white bg-black">
+        Verifying session…
+      </main>
+    );
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center gap-6 px-4 bg-black text-white">
-      <h1 className="text-3xl font-bold text-center">
-        Who are you here as?
-      </h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-3xl font-bold text-center">Who are you here as?</h1>
+        {email && (
+          <span className="text-xs px-3 py-1 rounded-full bg-white/10 text-zinc-300">{email}</span>
+        )}
+      </div>
+
+      <p className="text-sm text-zinc-400 max-w-xl text-center">
+        Choose a role to unlock the right dashboard. You can switch later without losing data. Sessions are protected with Supabase Auth.
+      </p>
 
       <div className="flex flex-col md:flex-row gap-4 mt-4">
         <button
@@ -50,6 +84,13 @@ export default function ChooseRolePage() {
           </p>
         </button>
       </div>
+
+      <button
+        onClick={handleSignOut}
+        className="text-sm text-zinc-400 underline underline-offset-4 hover:text-white"
+      >
+        Sign out securely
+      </button>
     </main>
   );
 }

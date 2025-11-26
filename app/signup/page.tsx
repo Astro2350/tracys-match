@@ -1,21 +1,59 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { isValidEmail, passwordIssues } from "@/lib/validation";
 
 export default function SignupPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"error" | "success">("success");
+  const [loading, setLoading] = useState(false);
 
-  async function handleSignup() {
+  const pwIssues = useMemo(() => passwordIssues(pw), [pw]);
+  const passwordsMatch = pw === confirm;
+
+  async function handleSignup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+
+    if (!isValidEmail(email)) {
+      setMessageTone("error");
+      return setMessage("Please use a valid email address.");
+    }
+
+    if (pwIssues.length) {
+      setMessageTone("error");
+      return setMessage(`Password needs: ${pwIssues.join(", ")}.`);
+    }
+
+    if (!passwordsMatch) {
+      setMessageTone("error");
+      return setMessage("Passwords must match.");
+    }
+
+    setLoading(true);
     const { error } = await supabase.auth.signUp({
       email,
       password: pw,
+      options: {
+        emailRedirectTo: `${window.location.origin}/choose-role`,
+      },
     });
+    setLoading(false);
 
-    if (error) setMessage(error.message);
-    else setMessage("Check your email to confirm your account.");
+    if (error) {
+      setMessageTone("error");
+      return setMessage(error.message);
+    }
+
+    setMessageTone("success");
+    setMessage("Check your email to confirm your account. Verification is required before accessing dashboards.");
+    router.prefetch("/choose-role");
   }
 
   return (
@@ -36,8 +74,15 @@ export default function SignupPage() {
           </div>
         </div>
 
-        <div className="p-8 bg-zinc-950 space-y-4">
-          <h2 className="text-xl font-semibold">Create an account</h2>
+        <form className="p-8 bg-zinc-950 space-y-4" onSubmit={handleSignup}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Create an account</h2>
+              <p className="text-xs text-zinc-500">Email verification + strong passwords enforced.</p>
+            </div>
+            <span className="text-[10px] px-2 py-1 rounded-full bg-white/10 text-zinc-300">RLS ready</span>
+          </div>
+
           <div className="space-y-3">
             <label className="text-sm text-zinc-400" htmlFor="email">
               Email
@@ -48,6 +93,8 @@ export default function SignupPage() {
               onChange={(e) => setEmail(e.target.value)}
               className="border border-white/10 bg-black/50 p-3 rounded-lg w-full text-white focus:outline-none focus:ring-2 focus:ring-white/30"
               placeholder="you@example.com"
+              required
+              autoComplete="email"
             />
           </div>
 
@@ -62,22 +109,60 @@ export default function SignupPage() {
               onChange={(e) => setPw(e.target.value)}
               className="border border-white/10 bg-black/50 p-3 rounded-lg w-full text-white focus:outline-none focus:ring-2 focus:ring-white/30"
               placeholder="Create a strong password"
+              required
+              minLength={10}
+              autoComplete="new-password"
             />
+            <div className="flex flex-wrap gap-2 text-[11px] text-zinc-500">
+              {["10+ chars", "Uppercase", "Lowercase", "Number", "Symbol"].map((item) => (
+                <span key={item} className="px-2 py-1 rounded-md bg-white/5 border border-white/10">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-sm text-zinc-400" htmlFor="confirm">
+              Confirm password
+            </label>
+            <input
+              id="confirm"
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              className="border border-white/10 bg-black/50 p-3 rounded-lg w-full text-white focus:outline-none focus:ring-2 focus:ring-white/30"
+              placeholder="Re-type your password"
+              required
+              autoComplete="new-password"
+            />
+            {!passwordsMatch && confirm.length > 0 && (
+              <p className="text-xs text-amber-300">Passwords don’t match yet.</p>
+            )}
           </div>
 
           <button
-            onClick={handleSignup}
-            className="w-full px-6 py-3 bg-white text-black rounded-lg font-semibold hover:bg-zinc-200 transition"
+            type="submit"
+            disabled={loading}
+            className="w-full px-6 py-3 bg-white text-black rounded-lg font-semibold hover:bg-zinc-200 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Sign Up
+            {loading ? "Creating account…" : "Sign Up"}
           </button>
 
-          {message && <p className="text-sm mt-2 text-emerald-300">{message}</p>}
+          {message && (
+            <p
+              className={`text-sm mt-2 ${
+                messageTone === "success" ? "text-emerald-300" : "text-amber-300"
+              }`}
+            >
+              {message}
+            </p>
+          )}
 
           <p className="text-xs text-zinc-500">
-            We never post publicly or show who helped you curate. You stay in control.
+            We never post publicly or show who helped you curate. You stay in control. Email verification prevents account takeover and aligns with Supabase RLS defaults.
           </p>
-        </div>
+        </form>
       </div>
     </main>
   );
