@@ -21,7 +21,25 @@ create policy "Users manage their own profile" on public.profiles
   with check (auth.uid() = id);
 ```
 
-4. Copy `.env.example` to `.env.local` and fill in your Supabase URL and anon key (use the exact Project URL, not "undefined" or placeholders):
+4. Create a `dater_profiles` table for bios and photos and protect it with RLS:
+
+```sql
+create table if not exists public.dater_profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  bio text,
+  photos text[] default '{}',
+  updated_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+alter table public.dater_profiles enable row level security;
+create policy "Users manage their own dater profile" on public.dater_profiles
+  for select using (auth.uid() = id)
+  with check (auth.uid() = id);
+```
+
+5. In Supabase Storage, create a bucket named `profile-photos` and mark it public so the app can render uploaded images. If you prefer a private bucket, add a signed URL helper and update the app to fetch signed URLs instead of `getPublicUrl`.
+
+6. Copy `.env.example` to `.env.local` and fill in your Supabase URL and anon key (use the exact Project URL, not "undefined" or placeholders):
 
 ```bash
 cp .env.example .env.local

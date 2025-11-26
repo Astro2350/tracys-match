@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
@@ -41,7 +42,12 @@ export default function DaterDashboard() {
   const [loading, setLoading] = useState(true);
   const [pool, setPool] = useState<PoolCandidate[]>(initialPool);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [bio, setBio] = useState("");
+  const [photos, setPhotos] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMessage, setProfileMessage] = useState("");
 
   useEffect(() => {
     async function checkRole() {
@@ -73,6 +79,20 @@ export default function DaterDashboard() {
       }
 
       setUserEmail(user.email ?? null);
+
+      const { data: profile, error: profileError } = await supabase
+        .from("dater_profiles")
+        .select("bio, photos")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileError && profileError.code !== "PGRST116") {
+        setErrorMessage(profileError.message);
+        return setLoading(false);
+      }
+
+      setBio(profile?.bio ?? "");
+      setPhotos(profile?.photos ?? []);
       setLoading(false);
     }
 
@@ -90,6 +110,83 @@ export default function DaterDashboard() {
         candidate.id === id ? { ...candidate, status } : candidate
       )
     );
+  }
+
+  async function handleUpload(event: ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files;
+    if (!files?.length) return;
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return router.push("/login");
+    }
+
+    setUploading(true);
+    setErrorMessage("");
+    setProfileMessage("");
+
+    const uploads: string[] = [];
+
+    for (const file of Array.from(files)) {
+      const safeName = file.name.replace(/\s+/g, "-");
+      const path = `${user.id}/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}-${safeName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("profile-photos")
+        .upload(path, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        setErrorMessage(uploadError.message);
+        continue;
+      }
+
+      const { data } = supabase.storage.from("profile-photos").getPublicUrl(path);
+      if (data?.publicUrl) {
+        uploads.push(data.publicUrl);
+      }
+    }
+
+    if (uploads.length) {
+      setPhotos((prev) => [...prev, ...uploads]);
+    }
+
+    setUploading(false);
+  }
+
+  async function handleSaveProfile() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return router.push("/login");
+    }
+
+    setSavingProfile(true);
+    setErrorMessage("");
+    setProfileMessage("");
+
+    const { error } = await supabase.from("dater_profiles").upsert({
+      id: user.id,
+      bio: bio.trim(),
+      photos,
+    });
+
+    if (error) {
+      setErrorMessage(error.message);
+    } else {
+      setProfileMessage("Profile updated — helpers can now see your bio and photos.");
+    }
+
+    setSavingProfile(false);
   }
 
   if (loading)
@@ -143,6 +240,64 @@ export default function DaterDashboard() {
             </button>
           </div>
         </div>
+
+        <section className="border border-white/10 rounded-2xl bg-zinc-950 p-6 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold">Share your story</h2>
+              <p className="text-sm text-zinc-400">
+                Add a short bio and a few photos so your helpers can represent you well when they scout matches.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-zinc-400">
+              <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10">Only your helpers can see this</span>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-[1.2fr,1fr]">
+            <div className="space-y-3">
+              <label className="block text-sm font-medium">Bio</label>
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                rows={5}
+                className="w-full rounded-xl border border-white/10 bg-black/60 p-3 text-sm placeholder:text-zinc-600 focus:border-white/30 focus:outline-none"
+                placeholder="Share what matters — values, boundaries, schedule, non-negotiables, and what a great partner looks like."
+              />
+              <button
+                onClick={handleSaveProfile}
+                disabled={savingProfile}
+                className="inline-flex items-center gap-2 rounded-lg bg-white text-black px-4 py-2 text-sm font-semibold hover:bg-zinc-200 transition disabled:opacity-60"
+              >
+                {savingProfile ? "Saving…" : "Save profile"}
+              </button>
+              {profileMessage && <p className="text-sm text-emerald-300">{profileMessage}</p>}
+              {errorMessage && <p className="text-sm text-red-300">{errorMessage}</p>}
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-sm font-medium">Photos</label>
+              <div className="flex flex-wrap gap-3">
+                {photos.map((url) => (
+                  <div key={url} className="relative h-28 w-24 overflow-hidden rounded-lg border border-white/10 bg-white/5">
+                    <Image src={url} alt="Profile" fill className="object-cover" sizes="96px" />
+                  </div>
+                ))}
+                <label className="flex h-28 w-24 cursor-pointer items-center justify-center rounded-lg border border-dashed border-white/20 bg-white/5 text-xs text-zinc-400 hover:border-white/40">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleUpload}
+                    className="hidden"
+                  />
+                  {uploading ? "Uploading…" : "+ Add"}
+                </label>
+              </div>
+              <p className="text-xs text-zinc-500">High-quality photos help helpers advocate for you. Keep it to 2–5.</p>
+            </div>
+          </div>
+        </section>
 
         <section className="border border-white/10 rounded-2xl bg-zinc-950">
           <div className="flex items-center justify-between p-6 border-b border-white/10">
